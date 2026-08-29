@@ -90,6 +90,8 @@ def run_pipeline():
         print("No open incident found.")
         return
 
+    incident_id = incident["id"]
+
     # ---------------------------------------------------------
     # 2. Get affected failed transactions
     # ---------------------------------------------------------
@@ -102,7 +104,7 @@ def run_pipeline():
           AND status = 'failed'
         ORDER BY created_at ASC
         """,
-        (incident["id"],),
+        (incident_id,),
     ).fetchall()
 
     conn.close()
@@ -132,7 +134,7 @@ def run_pipeline():
         log_event(
             event="ROUTE_SHIFT",
             actor="route_guardian",
-            incident_id=incident["id"],
+            incident_id=incident_id,
             details=(
                 f"{route_protection['from_route']} → "
                 f"{route_protection['to_route']} "
@@ -150,7 +152,7 @@ def run_pipeline():
         log_event(
             event="ROUTE_PROTECTION_ESCALATED",
             actor="route_guardian",
-            incident_id=incident["id"],
+            incident_id=incident_id,
             details=route_protection["reason"],
         )
 
@@ -175,7 +177,7 @@ def run_pipeline():
     log_event(
         event="INCIDENT_DIAGNOSED",
         actor="llm",
-        incident_id=incident["id"],
+        incident_id=incident_id,
         details=str(diagnosis),
     )
 
@@ -285,7 +287,7 @@ def run_pipeline():
             event="ACTION_VALIDATED",
             actor="validator",
             transaction_id=transaction["id"],
-            incident_id=incident["id"],
+            incident_id=incident_id,
             details=str(policy_result),
         )
 
@@ -299,7 +301,7 @@ def run_pipeline():
 
             stop_transaction(
                 transaction,
-                incident["id"],
+                incident_id,
                 policy_result["reason"],
             )
 
@@ -315,7 +317,7 @@ def run_pipeline():
 
             add_escalation(
                 transaction,
-                incident["id"],
+                incident_id,
                 policy_result["reason"],
             )
 
@@ -367,9 +369,10 @@ def run_pipeline():
                     event="REVENUE_RECOVERED",
                     actor="verifier",
                     transaction_id=transaction["id"],
-                    incident_id=incident["id"],
+                    incident_id=incident_id,
                     details=(
-                        f"₹{verification['recovered_amount']:,} recovered"
+                        f"₹{verification['recovered_amount']:,} "
+                        f"recovered"
                     ),
                 )
 
@@ -379,7 +382,7 @@ def run_pipeline():
                     event="RECOVERY_FAILED",
                     actor="verifier",
                     transaction_id=transaction["id"],
-                    incident_id=incident["id"],
+                    incident_id=incident_id,
                     details=(
                         "Recovery action did not result "
                         "in verified payment."
@@ -395,7 +398,7 @@ def run_pipeline():
 
         add_escalation(
             transaction,
-            incident["id"],
+            incident_id,
             "Unhandled action reached execution layer.",
         )
 
@@ -403,7 +406,39 @@ def run_pipeline():
         processed += 1
 
     # ---------------------------------------------------------
-    # 7. Final summary
+    # 7. Resolve incident after pipeline completion
+    # ---------------------------------------------------------
+
+    conn = get_connection()
+
+    conn.execute(
+        """
+        UPDATE incidents
+        SET status = 'resolved'
+        WHERE id = ?
+        """,
+        (incident_id,),
+    )
+
+    conn.commit()
+    conn.close()
+
+    log_event(
+        event="INCIDENT_RESOLVED",
+        actor="recovery_engine",
+        incident_id=incident_id,
+        details=(
+            f"Recovery pipeline completed. "
+            f"Processed={processed}, "
+            f"successful={successful}, "
+            f"stopped={stopped}, "
+            f"escalated={escalated}, "
+            f"recovered=₹{recovered_total:,}"
+        ),
+    )
+
+    # ---------------------------------------------------------
+    # 8. Final summary
     # ---------------------------------------------------------
 
     print("\n" + "=" * 60)
@@ -416,6 +451,7 @@ def run_pipeline():
     print(f"Stopped: {stopped}")
     print(f"Escalated: {escalated}")
     print(f"Revenue recovered: ₹{recovered_total:,}")
+    print(f"Incident status: resolved")
 
 
 if __name__ == "__main__":
