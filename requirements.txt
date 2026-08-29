@@ -4,3 +4,4 @@ google-genai==2.20.0
 pydantic==2.13.4
 python-dotenv==1.2.3
 pandas==3.0.5
+pytest==9.1.1

@@ -1,20 +1,44 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("data/recovery_sentinel.db")
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = BASE_DIR / "data" / "recovery_sentinel.db"
 
 
 def get_connection():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+
+    conn.execute(
+        "PRAGMA foreign_keys = ON"
+    )
+
+    initialize_database(conn)
+
     return conn
 
 
-def initialize_database():
-    conn = get_connection()
+def initialize_database(conn=None):
+    owns_connection = conn is None
+
+    if owns_connection:
+        DB_PATH.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+
+        conn.execute(
+            "PRAGMA foreign_keys = ON"
+        )
 
     conn.executescript(
         """
@@ -40,7 +64,8 @@ def initialize_database():
             retry_count INTEGER DEFAULT 0,
             recoverable INTEGER DEFAULT 0,
             ground_truth_action TEXT,
-            FOREIGN KEY (incident_id) REFERENCES incidents(id)
+            FOREIGN KEY (incident_id)
+                REFERENCES incidents(id)
         );
 
         CREATE TABLE IF NOT EXISTS recovery_actions (
@@ -51,7 +76,8 @@ def initialize_database():
             idempotency_key TEXT UNIQUE NOT NULL,
             executed_at TEXT,
             outcome TEXT,
-            FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+            FOREIGN KEY (transaction_id)
+                REFERENCES transactions(id)
         );
 
         CREATE TABLE IF NOT EXISTS audit_logs (
@@ -71,13 +97,16 @@ def initialize_database():
             amount INTEGER NOT NULL,
             created_at TEXT NOT NULL,
             resolved INTEGER DEFAULT 0,
-            FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+            FOREIGN KEY (transaction_id)
+                REFERENCES transactions(id)
         );
         """
     )
 
     conn.commit()
-    conn.close()
+
+    if owns_connection:
+        conn.close()
 
 
 if __name__ == "__main__":
