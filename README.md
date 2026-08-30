@@ -5,9 +5,8 @@
 
 Recovery Sentinel is an AI-assisted payment recovery system designed to detect payment-route degradation, protect future traffic, diagnose failure patterns, and safely recover affected transactions.
 
-The system combines Gemini-based diagnosis and recommendations with deterministic financial and safety controls. The AI can recommend an action, but it does not have direct authority to execute one.
+The system combines Gemini-based diagnosis and contextual reasoning with deterministic financial and safety controls. The AI does not have direct authority to execute financial actions.
 
----
 
 ## What It Does
 
@@ -98,10 +97,12 @@ This separates **reasoning** from **financial authority**.
 
 ### Gemini is used for
 
-* incident diagnosis
-* failure-pattern reasoning
-* recovery recommendations
-* human-readable reasoning
+- incident diagnosis
+- failure-pattern reasoning
+- contextual recovery reasoning
+- human-readable reasoning
+
+Gemini provides contextual reasoning and diagnosis. Executable recovery actions are selected by the deterministic category policy and then validated by deterministic safety controls. The model cannot directly authorize or execute financial actions.
 
 ### Deterministic code controls
 
@@ -210,7 +211,7 @@ Recovery rate: 68.09%
 
 The purpose of the comparison is not to claim more recovered revenue on this particular synthetic dataset.
 
-The value demonstrated here is **restraint**: the system reaches the same recovered revenue while avoiding interventions that its safety logic considers inappropriate.
+The comparison demonstrates both safer intervention and better recovery selection: Sentinel avoids unnecessary blind retries while using decline-reason-aware recovery actions such as PAYMENT_LINK to recover transactions that blind retry cannot structurally recover.
 
 ---
 
