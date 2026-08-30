@@ -81,7 +81,7 @@ Recovery Sentinel is designed around a simple sequence:
 1. Detect a systemic payment degradation.
 2. Identify the affected transactions and revenue at risk.
 3. Protect future traffic by shifting away from an unhealthy route.
-4. Use AI to diagnose the incident and recommend a bounded action.
+4. Use AI to diagnose the incident and provide contextual recovery reasoning.
 5. Calculate expected recovery value before intervention.
 6. Apply deterministic policy and safety constraints.
 7. Execute only approved actions.
