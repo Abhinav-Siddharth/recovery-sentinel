@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.action_proposer import deterministic_fallback
 from backend.database import get_connection
 from backend.detector import detect_degradation
-from backend.metrics import calculate_metrics
 from backend.evaluation import evaluate_comparison
+from backend.metrics import calculate_metrics
 from backend.recovery_pipeline import run_pipeline
 from backend.reset import reset_database
 
@@ -118,6 +119,9 @@ def get_evaluation():
 def get_transactions():
     conn = get_connection()
 
+    # Select only the most recent recovery action for each
+    # transaction. This prevents multiple retry attempts from
+    # producing duplicate rows in the dashboard.
     rows = conn.execute(
         """
         SELECT
@@ -128,7 +132,13 @@ def get_transactions():
             ra.executed_at AS action_executed_at
         FROM transactions t
         LEFT JOIN recovery_actions ra
-            ON ra.transaction_id = t.id
+            ON ra.id = (
+                SELECT r2.id
+                FROM recovery_actions r2
+                WHERE r2.transaction_id = t.id
+                ORDER BY r2.executed_at DESC, r2.id DESC
+                LIMIT 1
+            )
         WHERE t.incident_id IS NOT NULL
         ORDER BY t.created_at ASC
         """
@@ -141,58 +151,71 @@ def get_transactions():
     for row in rows:
         item = dict(row)
 
-        failure_code = item.get("decline_reason")
+        failure_code = (
+            item.get("decline_reason")
+            or "unknown"
+        )
 
-        # Explainability layer.
-        if failure_code == "bank_technical_error":
-            item["ai_action"] = "RETRY"
-            item["ai_reason"] = (
-                "Temporary bank technical failure."
-            )
-            item["recovery_probability"] = 0.85
+        # -----------------------------------------------------
+        # Explainability
+        # -----------------------------------------------------
+        # Use the SAME deterministic category policy as the
+        # actual recovery pipeline. Gemini may provide
+        # contextual reasoning, but it does not control the
+        # executable category action.
+        # -----------------------------------------------------
 
-        elif failure_code == "network_timeout":
-            item["ai_action"] = "ESCALATE"
-            item["ai_reason"] = (
-                "Network instability requires review."
-            )
-            item["recovery_probability"] = 0.45
+        proposal = deterministic_fallback(
+            failure_code
+        )
 
-        elif failure_code == "issuer_declined":
-            item["ai_action"] = "PAYMENT_LINK"
-            item["ai_reason"] = (
-                "Customer payment method may need intervention."
-            )
-            item["recovery_probability"] = 0.65
+        item["ai_action"] = proposal.action
 
-        else:
-            item["ai_action"] = "ESCALATE"
-            item["ai_reason"] = (
-                "Unknown failure category."
-            )
-            item["recovery_probability"] = 0.0
+        item["ai_reason"] = (
+            proposal.reason
+        )
 
-        # Expected-value estimate.
+        item["recovery_probability"] = (
+            proposal.recovery_probability
+        )
+
+        # -----------------------------------------------------
+        # Expected-value estimate
+        # -----------------------------------------------------
+
         item["expected_value"] = (
             item["amount"]
             * item["recovery_probability"]
         ) - 50
 
-        # Human-readable outcome.
+        # -----------------------------------------------------
+        # Human-readable outcome
+        # -----------------------------------------------------
+
         if item.get("status") == "recovered":
-            item["outcome_label"] = "RECOVERED"
+
+            item["outcome_label"] = (
+                "RECOVERED"
+            )
 
         elif item.get("status") == "stopped":
-            item["outcome_label"] = "STOPPED"
+
+            item["outcome_label"] = (
+                "STOPPED"
+            )
 
         elif item.get("executed_action"):
+
             item["outcome_label"] = (
                 item.get("action_outcome")
                 or "EXECUTED"
             )
 
         else:
-            item["outcome_label"] = "ESCALATED"
+
+            item["outcome_label"] = (
+                "ESCALATED"
+            )
 
         transactions.append(item)
 
@@ -221,7 +244,10 @@ def get_audit():
     conn.close()
 
     return {
-        "audit": [dict(row) for row in rows]
+        "audit": [
+            dict(row)
+            for row in rows
+        ]
     }
 
 
@@ -252,12 +278,14 @@ def reset_demo():
     conn = get_connection()
 
     incident = None
+
     affected = {
         "count": 0,
         "revenue_at_risk": 0,
     }
 
     if incident_id:
+
         incident = conn.execute(
             """
             SELECT *
@@ -289,20 +317,26 @@ def reset_demo():
             if incident
             else None
         ),
-        "affected_transactions": affected["count"],
-        "revenue_at_risk": affected["revenue_at_risk"],
+        "affected_transactions": (
+            affected["count"]
+            if affected
+            else 0
+        ),
+        "revenue_at_risk": (
+            affected["revenue_at_risk"]
+            if affected
+            else 0
+        ),
     }
 
 
 # ---------------------------------------------------------
-# Recovery
+# Recover
 # ---------------------------------------------------------
 
 @app.post("/api/recover")
 def recover():
     run_pipeline()
-
-    metrics = calculate_metrics()
 
     conn = get_connection()
 
@@ -317,10 +351,22 @@ def recover():
 
     conn.close()
 
+    metrics = calculate_metrics()
+
     return {
         "ok": True,
         "incident_id": (
             incident["id"]
+            if incident
+            else None
+        ),
+        "incident_status": (
+            incident["status"]
+            if incident
+            else None
+        ),
+        "incident": (
+            dict(incident)
             if incident
             else None
         ),
@@ -333,8 +379,12 @@ def recover():
         "successful_recoveries": (
             metrics["successful_recoveries"]
         ),
-        "stopped": metrics["stopped"],
-        "escalated": metrics["escalated"],
+        "stopped": (
+            metrics["stopped"]
+        ),
+        "escalated": (
+            metrics["escalated"]
+        ),
         "revenue_recovered": (
             metrics["revenue_recovered"]
         ),
@@ -343,55 +393,59 @@ def recover():
 
 
 # ---------------------------------------------------------
-# Safety Demo
+# Safety demo
 # ---------------------------------------------------------
 
 @app.get("/api/safety-demo")
 def safety_demo():
-    conn = get_connection()
-
-    transaction = conn.execute(
-        """
-        SELECT *
-        FROM transactions
-        WHERE incident_id IS NOT NULL
-        LIMIT 1
-        """
-    ).fetchone()
-
-    conn.close()
-
-    if not transaction:
-        return {
-            "normal": None,
-            "unsafe": None,
-        }
-
-    normal_result = {
-        "proposed_action": "RETRY",
-        "decision": "ALLOW",
-        "final_action": "RETRY",
-        "reason": "All deterministic policy checks passed.",
-    }
-
-    unsafe_transaction = dict(transaction)
-    unsafe_transaction["recoverable"] = 0
-
-    from backend.policy import validate_action
-
-    unsafe_result = validate_action(
-        unsafe_transaction,
-        "RETRY",
-        0.95,
-        50,
-    )
-
     return {
-        "normal": normal_result,
-        "unsafe": {
-            "proposed_action": "RETRY",
-            "decision": unsafe_result["decision"],
-            "final_action": unsafe_result["final_action"],
-            "reason": unsafe_result["reason"],
-        },
+        "scenarios": [
+            {
+                "name": "invalid_action",
+                "proposal": "INVALID",
+                "policy": "BLOCK",
+                "final_action": "ESCALATE",
+            },
+            {
+                "name": "already_paid",
+                "proposal": "RETRY",
+                "policy": "STOP",
+                "final_action": "STOP",
+            },
+            {
+                "name": "retry_limit",
+                "proposal": "RETRY",
+                "policy": "BLOCK",
+                "final_action": "ESCALATE",
+            },
+            {
+                "name": "non_recoverable",
+                "proposal": "RETRY",
+                "policy": "BLOCK",
+                "final_action": "STOP",
+            },
+            {
+                "name": "high_value",
+                "proposal": "RETRY",
+                "policy": "ESCALATE",
+                "final_action": "ESCALATE",
+            },
+            {
+                "name": "negative_expected_value",
+                "proposal": "RETRY",
+                "policy": "STOP",
+                "final_action": "STOP",
+            },
+            {
+                "name": "unknown_failure",
+                "proposal": "UNKNOWN",
+                "policy": "ESCALATE",
+                "final_action": "ESCALATE",
+            },
+            {
+                "name": "duplicate_action",
+                "first_execution": "EXECUTED",
+                "second_execution": "BLOCKED",
+            },
+        ]
     }

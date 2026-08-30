@@ -112,11 +112,11 @@ export function BaselineComparison({
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#7f93a8]">
-              Restraint advantage
+              Recovery advantage
             </div>
 
             <div className="mt-1 text-sm text-[#c7d6e4]">
-              Same recovered revenue with fewer interventions.
+              Higher recovery with fewer interventions.
             </div>
           </div>
 
@@ -128,7 +128,7 @@ export function BaselineComparison({
         <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-[#8fa3b8]">
           <span>
             {evaluation.unnecessary_attempts_avoided}
-            {' unnecessary retries avoided'}
+            {' Blind retries would be mismatched'}
           </span>
 
           <span>
