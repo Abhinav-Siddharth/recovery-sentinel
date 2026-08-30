@@ -11,8 +11,11 @@ def execute_recovery(transaction, action):
 
     transaction_id = transaction["id"]
 
-    # Prevent duplicate actions.
-    idempotency_key = f"{transaction_id}:{transaction['retry_count'] + 1}"
+    # Each execution attempt gets a unique transaction + attempt key.
+    attempt_number = transaction["retry_count"] + 1
+    idempotency_key = (
+        f"{transaction_id}:{attempt_number}"
+    )
 
     conn = get_connection()
 
@@ -27,13 +30,14 @@ def execute_recovery(transaction, action):
 
     if existing:
         conn.close()
+
         return {
             "status": "BLOCKED",
             "outcome": "DUPLICATE",
             "reason": "Action already executed.",
         }
 
-    # Simulated outcome based on our ground-truth dataset.
+    # Simulated outcome based on synthetic ground truth.
     if action == transaction["ground_truth_action"]:
         outcome = "SUCCESS"
         recovered_amount = transaction["amount"]
@@ -41,7 +45,9 @@ def execute_recovery(transaction, action):
         outcome = "FAILURE"
         recovered_amount = 0
 
-    action_id = f"ACT-{transaction_id}-{transaction['retry_count'] + 1}"
+    action_id = (
+        f"ACT-{transaction_id}-{attempt_number}"
+    )
 
     conn.execute(
         """
@@ -54,7 +60,9 @@ def execute_recovery(transaction, action):
             executed_at,
             outcome
         )
-        VALUES (?, ?, ?, ?, ?, datetime('now'), ?)
+        VALUES (
+            ?, ?, ?, ?, ?, datetime('now'), ?
+        )
         """,
         (
             action_id,
@@ -66,12 +74,26 @@ def execute_recovery(transaction, action):
         ),
     )
 
+    # IMPORTANT:
+    # Every actual execution attempt increments retry_count,
+    # including failed attempts. This makes the retry cap
+    # reachable through the real recovery pipeline.
     if outcome == "SUCCESS":
         conn.execute(
             """
             UPDATE transactions
             SET status = 'recovered',
                 retry_count = retry_count + 1
+            WHERE id = ?
+            """,
+            (transaction_id,),
+        )
+
+    else:
+        conn.execute(
+            """
+            UPDATE transactions
+            SET retry_count = retry_count + 1
             WHERE id = ?
             """,
             (transaction_id,),
@@ -85,4 +107,5 @@ def execute_recovery(transaction, action):
         "outcome": outcome,
         "recovered_amount": recovered_amount,
         "action_id": action_id,
+        "attempt_number": attempt_number,
     }

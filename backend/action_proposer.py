@@ -23,13 +23,11 @@ class CategoryAction(BaseModel):
 
 
 # ---------------------------------------------------------
-# DEMO POLICY
+# Deterministic category policy
 # ---------------------------------------------------------
-# These values are intentionally fixed so that the demo is
-# reproducible across runs.
-#
-# Gemini may provide contextual reasoning, but these
-# deterministic category rules control the executable action.
+# Gemini can provide diagnosis/contextual reasoning, but
+# executable recovery behavior remains deterministic.
+# This prevents model drift from changing financial behavior.
 # ---------------------------------------------------------
 
 CATEGORY_POLICY = {
@@ -101,7 +99,9 @@ def deterministic_fallback(
     failure_code: str,
 ) -> CategoryAction:
 
-    policy = CATEGORY_POLICY.get(failure_code)
+    policy = CATEGORY_POLICY.get(
+        failure_code
+    )
 
     if policy:
         return CategoryAction(
@@ -167,7 +167,9 @@ You do NOT control execution.
 """
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(
+            api_key=api_key
+        )
 
         response = client.models.generate_content(
             model="gemini-3.5-flash-lite",
@@ -192,31 +194,30 @@ def get_category_action(
     incident=None,
 ) -> CategoryAction:
     """
-    Gemini provides contextual intelligence, but the executable
-    recovery action comes from the deterministic category policy.
+    Gemini provides contextual reasoning, while executable
+    action selection remains deterministic.
 
-    This makes the demo reproducible and prevents model drift
-    from changing business behavior.
+    If Gemini is available and agrees with the deterministic
+    category policy, its reasoning text may be used. The action
+    and probability remain controlled by CATEGORY_POLICY.
     """
 
     policy_result = deterministic_fallback(
         failure_code
     )
 
-    # Ask Gemini for additional reasoning when available.
-    # The response is informational only.
     gemini_result = get_gemini_suggestion(
         failure_code,
         incident,
     )
 
     if gemini_result:
-        # Keep the deterministic action/probability.
-        # Use Gemini's reasoning only when it is compatible.
         if gemini_result.action == policy_result.action:
             return CategoryAction(
                 action=policy_result.action,
-                recovery_probability=policy_result.probability,
+                recovery_probability=(
+                    policy_result.recovery_probability
+                ),
                 reason=gemini_result.reason,
             )
 

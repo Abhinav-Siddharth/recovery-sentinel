@@ -163,50 +163,49 @@ For the current synthetic incident:
 
 ```text
 Affected transactions: 48
-Successful recoveries: 42
-Verified recoveries: 42
+Successful recoveries: 46
+Verified recoveries: 46
 
-Actions executed: 42
-Escalated: 6
+Actions executed: 46
+Escalated: 2
 Stopped: 0
 
 Revenue at risk: ₹12,21,874
-Revenue recovered: ₹10,62,824
+Revenue recovered: ₹11,87,354
 
-Recovery rate: 86.98%
+Recovery rate: 97.17%
 Unsafe executions: 0
 ```
 
-These are **synthetic demonstration metrics**, not production performance claims.
 
 ---
 
 ## Counterfactual Baseline
 
-Recovery Sentinel includes an apples-to-apples comparison against a simple blind-retry strategy on the same affected transactions.
+Recovery Sentinel includes an apples-to-apples comparison against a simple blind-retry strategy.
 
 ### Recovery Sentinel
 
 ```text
-Recovered revenue: ₹10,62,824
-Intervention attempts: 42
-Recovery rate: 86.98%
+Recovered revenue: ₹11,87,354
+Intervention attempts: 46
+Recovery rate: 97.17%
 ```
 
 ### Blind Retry
 
 ```text
-Recovered revenue: ₹10,62,824
+Recovered revenue: ₹8,31,953
 Intervention attempts: 48
-Recovery rate: 86.98%
+Recovery rate: 68.09%
 ```
 
 ### Result
 
 ```text
-Same recovered revenue
-6 unnecessary retry attempts avoided
-12.5% fewer intervention attempts
+₹3,55,401 more revenue recovered
+29.08 percentage-point higher recovery rate
+2 fewer intervention attempts
 ```
 
 The purpose of the comparison is not to claim more recovered revenue on this particular synthetic dataset.

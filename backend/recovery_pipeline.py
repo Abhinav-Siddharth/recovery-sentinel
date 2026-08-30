@@ -138,7 +138,8 @@ def run_pipeline():
             details=(
                 f"{route_protection['from_route']} → "
                 f"{route_protection['to_route']} "
-                f"for {route_protection['duration_minutes']} min"
+                f"for "
+                f"{route_protection['duration_minutes']} min"
             ),
         )
 
@@ -224,7 +225,9 @@ def run_pipeline():
     executed = 0
     successful = 0
 
-    for transaction in transactions:
+    for original_transaction in transactions:
+
+        transaction = dict(original_transaction)
 
         print("-" * 60)
 
@@ -234,175 +237,240 @@ def run_pipeline():
             f"{transaction['decline_reason']}"
         )
 
-        failure_code = (
-            transaction["decline_reason"]
-            or "unknown"
-        )
+        terminal = False
 
-        proposal = category_actions.get(failure_code)
+        # -----------------------------------------------------
+        # 6A. Per-transaction recovery loop
+        # -----------------------------------------------------
 
-        # Safety fallback for an unexpected category.
-        if proposal is None:
-            proposal = get_category_action(
-                failure_code,
-                incident,
+        while not terminal:
+
+            # Always read the latest state so retry_count/status
+            # reflects the most recent execution attempt.
+            conn = get_connection()
+
+            current = conn.execute(
+                """
+                SELECT *
+                FROM transactions
+                WHERE id = ?
+                """,
+                (transaction["id"],),
+            ).fetchone()
+
+            conn.close()
+
+            if not current:
+                terminal = True
+                break
+
+            transaction = dict(current)
+
+            failure_code = (
+                transaction["decline_reason"]
+                or "unknown"
             )
 
-        print(
-            f"AI proposal: {proposal.action} "
-            f"(probability={proposal.recovery_probability:.2f})"
-        )
+            proposal = category_actions.get(
+                failure_code
+            )
 
-        # -----------------------------------------------------
-        # 6A. Expected value
-        # -----------------------------------------------------
+            if proposal is None:
+                proposal = get_category_action(
+                    failure_code,
+                    incident,
+                )
 
-        expected_value = calculate_expected_value(
-            transaction["amount"],
-            proposal.recovery_probability,
-            INTERVENTION_COST,
-        )
+            attempt_number = (
+                transaction["retry_count"] + 1
+            )
 
-        print(
-            f"Expected value: ₹{expected_value:,.2f}"
-        )
+            print(
+                f"Attempt {attempt_number}: "
+                f"AI proposal: {proposal.action} "
+                f"(probability="
+                f"{proposal.recovery_probability:.2f})"
+            )
 
-        # -----------------------------------------------------
-        # 6B. Deterministic policy
-        # -----------------------------------------------------
+            # -------------------------------------------------
+            # 6B. Expected value
+            # -------------------------------------------------
 
-        policy_result = validate_action(
-            transaction,
-            proposal.action,
-            proposal.recovery_probability,
-            INTERVENTION_COST,
-        )
+            expected_value = calculate_expected_value(
+                transaction["amount"],
+                proposal.recovery_probability,
+                INTERVENTION_COST,
+            )
 
-        print(
-            f"Policy: {policy_result['decision']} "
-            f"→ {policy_result['final_action']}"
-        )
+            print(
+                f"Expected value: "
+                f"₹{expected_value:,.2f}"
+            )
 
-        log_event(
-            event="ACTION_VALIDATED",
-            actor="validator",
-            transaction_id=transaction["id"],
-            incident_id=incident_id,
-            details=str(policy_result),
-        )
+            # -------------------------------------------------
+            # 6C. Deterministic policy
+            # -------------------------------------------------
 
-        final_action = policy_result["final_action"]
-
-        # -----------------------------------------------------
-        # 6C. STOP
-        # -----------------------------------------------------
-
-        if final_action == "STOP":
-
-            stop_transaction(
+            policy_result = validate_action(
                 transaction,
-                incident_id,
-                policy_result["reason"],
+                proposal.action,
+                proposal.recovery_probability,
+                INTERVENTION_COST,
             )
 
-            stopped += 1
-            processed += 1
-            continue
+            print(
+                f"Policy: "
+                f"{policy_result['decision']} "
+                f"→ "
+                f"{policy_result['final_action']}"
+            )
 
-        # -----------------------------------------------------
-        # 6D. ESCALATE
-        # -----------------------------------------------------
+            log_event(
+                event="ACTION_VALIDATED",
+                actor="validator",
+                transaction_id=transaction["id"],
+                incident_id=incident_id,
+                details=str(policy_result),
+            )
 
-        if final_action == "ESCALATE":
+            final_action = (
+                policy_result["final_action"]
+            )
+
+            # -------------------------------------------------
+            # 6D. STOP
+            # -------------------------------------------------
+
+            if final_action == "STOP":
+
+                stop_transaction(
+                    transaction,
+                    incident_id,
+                    policy_result["reason"],
+                )
+
+                stopped += 1
+                terminal = True
+                continue
+
+            # -------------------------------------------------
+            # 6E. ESCALATE
+            # -------------------------------------------------
+
+            if final_action == "ESCALATE":
+
+                add_escalation(
+                    transaction,
+                    incident_id,
+                    policy_result["reason"],
+                )
+
+                escalated += 1
+                terminal = True
+                continue
+
+            # -------------------------------------------------
+            # 6F. Execute allowed recovery action
+            # -------------------------------------------------
+
+            if final_action in {
+                "RETRY",
+                "PAYMENT_LINK",
+            }:
+
+                result = execute_recovery(
+                    transaction,
+                    final_action,
+                )
+
+                # A valid recovery action was handled.
+                # Never fall through to the absolute safety
+                # fallback below.
+                executed += 1
+
+                print(
+                    f"Execution: "
+                    f"{result['outcome']}"
+                )
+
+                # -------------------------------------------------
+                # 6G. Verify
+                # -------------------------------------------------
+
+                verification = verify_recovery(
+                    transaction["id"]
+                )
+
+                print(
+                    f"Verified: "
+                    f"{verification['verified']}"
+                )
+
+                if verification["verified"]:
+
+                    successful += 1
+
+                    recovered_total += (
+                        verification[
+                            "recovered_amount"
+                        ]
+                    )
+
+                    log_event(
+                        event="REVENUE_RECOVERED",
+                        actor="verifier",
+                        transaction_id=transaction["id"],
+                        incident_id=incident_id,
+                        details=(
+                            f"₹"
+                            f"{verification['recovered_amount']:,} "
+                            f"recovered"
+                        ),
+                    )
+
+                    terminal = True
+
+                else:
+
+                    log_event(
+                        event="RECOVERY_FAILED",
+                        actor="verifier",
+                        transaction_id=transaction["id"],
+                        incident_id=incident_id,
+                        details=(
+                            "Recovery action did not result "
+                            "in verified payment."
+                        ),
+                    )
+
+                    # execute_recovery() increments retry_count
+                    # for both success and failure.
+                    #
+                    # Do not terminate here. Re-enter the policy
+                    # with the updated retry_count. If the maximum
+                    # retry count has been reached, validate_action()
+                    # will return BLOCK → ESCALATE.
+                    terminal = False
+
+                # IMPORTANT:
+                # Stay inside the recovery branch.
+                # This prevents successful/failed valid actions
+                # from falling through to the absolute fallback.
+                continue
+
+            # -------------------------------------------------
+            # 6H. Absolute safety fallback
+            # -------------------------------------------------
 
             add_escalation(
                 transaction,
                 incident_id,
-                policy_result["reason"],
+                "Unhandled action reached execution layer.",
             )
 
             escalated += 1
-            processed += 1
-            continue
+            terminal = True
 
-        # -----------------------------------------------------
-        # 6E. Execute allowed recovery action
-        # -----------------------------------------------------
-
-        if final_action in {
-            "RETRY",
-            "PAYMENT_LINK",
-        }:
-
-            result = execute_recovery(
-                transaction,
-                final_action,
-            )
-
-            executed += 1
-
-            print(
-                f"Execution: {result['outcome']}"
-            )
-
-            # -------------------------------------------------
-            # 6F. Verify
-            # -------------------------------------------------
-
-            verification = verify_recovery(
-                transaction["id"]
-            )
-
-            print(
-                f"Verified: {verification['verified']}"
-            )
-
-            if verification["verified"]:
-
-                successful += 1
-
-                recovered_total += (
-                    verification["recovered_amount"]
-                )
-
-                log_event(
-                    event="REVENUE_RECOVERED",
-                    actor="verifier",
-                    transaction_id=transaction["id"],
-                    incident_id=incident_id,
-                    details=(
-                        f"₹{verification['recovered_amount']:,} "
-                        f"recovered"
-                    ),
-                )
-
-            else:
-
-                log_event(
-                    event="RECOVERY_FAILED",
-                    actor="verifier",
-                    transaction_id=transaction["id"],
-                    incident_id=incident_id,
-                    details=(
-                        "Recovery action did not result "
-                        "in verified payment."
-                    ),
-                )
-
-            processed += 1
-            continue
-
-        # -----------------------------------------------------
-        # 6G. Absolute safety fallback
-        # -----------------------------------------------------
-
-        add_escalation(
-            transaction,
-            incident_id,
-            "Unhandled action reached execution layer.",
-        )
-
-        escalated += 1
         processed += 1
 
     # ---------------------------------------------------------
@@ -447,11 +515,17 @@ def run_pipeline():
 
     print(f"Processed: {processed}")
     print(f"Actions executed: {executed}")
-    print(f"Successful recoveries: {successful}")
+    print(
+        f"Successful recoveries: "
+        f"{successful}"
+    )
     print(f"Stopped: {stopped}")
     print(f"Escalated: {escalated}")
-    print(f"Revenue recovered: ₹{recovered_total:,}")
-    print(f"Incident status: resolved")
+    print(
+        f"Revenue recovered: "
+        f"₹{recovered_total:,}"
+    )
+    print("Incident status: resolved")
 
 
 if __name__ == "__main__":
