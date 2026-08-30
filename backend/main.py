@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.action_proposer import deterministic_fallback
+from backend.action_proposer import get_category_action
 from backend.database import get_connection
 from backend.detector import detect_degradation
 from backend.evaluation import evaluate_comparison
@@ -120,8 +120,7 @@ def get_transactions():
     conn = get_connection()
 
     # Select only the most recent recovery action for each
-    # transaction. This prevents multiple retry attempts from
-    # producing duplicate rows in the dashboard.
+    # transaction so retries do not create duplicate dashboard rows.
     rows = conn.execute(
         """
         SELECT
@@ -144,9 +143,26 @@ def get_transactions():
         """
     ).fetchall()
 
+    incident = None
+
+    if rows and rows[0]["incident_id"]:
+        incident = conn.execute(
+            """
+            SELECT *
+            FROM incidents
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (rows[0]["incident_id"],),
+        ).fetchone()
+
     conn.close()
 
     transactions = []
+
+    # Cache the category decisions so a dashboard refresh does not
+    # repeatedly request the same decision for every transaction.
+    category_actions = {}
 
     for row in rows:
         item = dict(row)
@@ -156,24 +172,28 @@ def get_transactions():
             or "unknown"
         )
 
-        # -----------------------------------------------------
-        # Explainability
-        # -----------------------------------------------------
-        # Use the SAME deterministic category policy as the
-        # actual recovery pipeline. Gemini may provide
-        # contextual reasoning, but it does not control the
-        # executable category action.
-        # -----------------------------------------------------
+        if failure_code not in category_actions:
+            category_actions[failure_code] = (
+                get_category_action(
+                    failure_code,
+                    incident,
+                )
+            )
 
-        proposal = deterministic_fallback(
+        proposal = category_actions[
             failure_code
-        )
+        ]
+
+        # -----------------------------------------------------
+        # Same category-action logic as the recovery pipeline.
+        # Gemini may provide contextual reasoning, but the
+        # deterministic category policy controls the action
+        # and probability.
+        # -----------------------------------------------------
 
         item["ai_action"] = proposal.action
 
-        item["ai_reason"] = (
-            proposal.reason
-        )
+        item["ai_reason"] = proposal.reason
 
         item["recovery_probability"] = (
             proposal.recovery_probability
