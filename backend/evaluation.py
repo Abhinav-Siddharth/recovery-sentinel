@@ -61,8 +61,6 @@ def evaluate_incident():
         """
     ).fetchone()[0]
 
-    # A recovery is counted only after verification changed
-    # the transaction state to "recovered".
     verified_recoveries = conn.execute(
         """
         SELECT COUNT(*)
@@ -98,4 +96,97 @@ def evaluate_incident():
         "escalated": escalated_count,
         "actions_executed": actions_executed,
         "unsafe_executions": unsafe_executions,
+    }
+
+
+def blind_retry_baseline():
+    """
+    Counterfactual baseline over the same affected transactions.
+
+    Every affected transaction receives one blind retry attempt,
+    with no diagnosis, value gate, policy validation, or escalation.
+    Ground-truth labels determine whether that retry would recover.
+    """
+
+    conn = get_connection()
+
+    rows = conn.execute(
+        """
+        SELECT
+            id,
+            amount,
+            recoverable,
+            ground_truth_action
+        FROM transactions
+        WHERE incident_id IS NOT NULL
+        ORDER BY created_at ASC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    total = len(rows)
+
+    revenue_at_risk = sum(
+        row["amount"]
+        for row in rows
+    )
+
+    successful = [
+        row
+        for row in rows
+        if row["recoverable"] == 1
+        and row["ground_truth_action"] == "RETRY"
+    ]
+
+    recovered_revenue = sum(
+        row["amount"]
+        for row in successful
+    )
+
+    unnecessary_attempts = total - len(successful)
+
+    recovery_rate = (
+        recovered_revenue / revenue_at_risk
+        if revenue_at_risk
+        else 0
+    )
+
+    return {
+        "strategy": "BLIND_RETRY",
+        "affected_transactions": total,
+        "revenue_at_risk": revenue_at_risk,
+        "revenue_recovered": recovered_revenue,
+        "recovery_rate": recovery_rate,
+        "attempts": total,
+        "successful_recoveries": len(successful),
+        "unnecessary_attempts": unnecessary_attempts,
+    }
+
+
+def evaluate_comparison():
+    sentinel = evaluate_incident()
+    baseline = blind_retry_baseline()
+
+    sentinel_actions = sentinel["actions_executed"]
+    baseline_attempts = baseline["attempts"]
+
+    intervention_reduction = (
+        (baseline_attempts - sentinel_actions)
+        / baseline_attempts
+        if baseline_attempts
+        else 0
+    )
+
+    return {
+        "sentinel": sentinel,
+        "blind_retry": baseline,
+        "revenue_advantage": (
+            sentinel["revenue_recovered"]
+            - baseline["revenue_recovered"]
+        ),
+        "intervention_reduction": intervention_reduction,
+        "unnecessary_attempts_avoided": (
+            baseline["unnecessary_attempts"]
+        ),
     }

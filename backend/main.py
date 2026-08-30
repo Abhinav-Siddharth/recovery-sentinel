@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.database import get_connection
 from backend.detector import detect_degradation
 from backend.metrics import calculate_metrics
-from backend.evaluation import evaluate_incident
+from backend.evaluation import evaluate_comparison
 from backend.recovery_pipeline import run_pipeline
 from backend.reset import reset_database
 
@@ -107,7 +107,7 @@ def get_metrics():
 
 @app.get("/api/evaluation")
 def get_evaluation():
-    return evaluate_incident()
+    return evaluate_comparison()
 
 
 # ---------------------------------------------------------

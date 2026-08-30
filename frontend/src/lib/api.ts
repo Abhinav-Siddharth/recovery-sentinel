@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
+  'http://127.0.0.1:8000'
 
 type RequestOptions = {
   signal?: AbortSignal
@@ -18,25 +20,40 @@ async function requestJson<T>(
     method,
     cache: 'no-store',
     signal: options.signal,
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+    },
   })
 
   if (!response.ok) {
     let message = `${path} failed (${response.status})`
+
     try {
       const body: unknown = await response.json()
-      if (body && typeof body === 'object' && 'detail' in body) {
-        const detail = (body as { detail: unknown }).detail
-        if (typeof detail === 'string') message = detail
+
+      if (
+        body &&
+        typeof body === 'object' &&
+        'detail' in body
+      ) {
+        const detail = (
+          body as { detail: unknown }
+        ).detail
+
+        if (typeof detail === 'string') {
+          message = detail
+        }
       }
     } catch {
       // Keep the status message if the body is not JSON.
     }
+
     throw new Error(message)
   }
 
   return (await response.json()) as T
 }
+
 
 export type MetricsResponse = {
   revenue_at_risk: number
@@ -44,10 +61,33 @@ export type MetricsResponse = {
   recovery_rate: number
   affected_transactions: number
   successful_recoveries: number
+  verified_recoveries: number
   stopped: number
   escalated: number
   actions_executed: number
+  unsafe_executions?: number
 }
+
+
+export type EvaluationResponse = {
+  sentinel: MetricsResponse
+
+  blind_retry: {
+    strategy: string
+    affected_transactions: number
+    revenue_at_risk: number
+    revenue_recovered: number
+    recovery_rate: number
+    attempts: number
+    successful_recoveries: number
+    unnecessary_attempts: number
+  }
+
+  revenue_advantage: number
+  intervention_reduction: number
+  unnecessary_attempts_avoided: number
+}
+
 
 export type IncidentRecord = {
   id: string
@@ -59,16 +99,20 @@ export type IncidentRecord = {
   status: string
 }
 
+
 export type IncidentResponse = {
   incident: IncidentRecord | null
   affected_transactions: number
   revenue_at_risk: number
 }
 
-export type ResetResponse = IncidentResponse & {
-  incident_id: string | null
-  detected: boolean
-}
+
+export type ResetResponse =
+  IncidentResponse & {
+    incident_id: string | null
+    detected: boolean
+  }
+
 
 export type RecoverResponse = {
   ok?: boolean
@@ -84,6 +128,7 @@ export type RecoverResponse = {
   metrics?: MetricsResponse
 }
 
+
 export type TransactionRecord = {
   id: string
   amount: number
@@ -98,9 +143,11 @@ export type TransactionRecord = {
   ground_truth_action: string | null
 }
 
+
 export type TransactionsResponse = {
   transactions: TransactionRecord[]
 }
+
 
 export type AuditRecord = {
   id: number
@@ -112,19 +159,28 @@ export type AuditRecord = {
   details: string | null
 }
 
+
 export type AuditResponse = {
   audit: AuditRecord[]
 }
 
+
 export type DashboardPayload = {
   incident: IncidentResponse
   metrics: MetricsResponse
+  evaluation: EvaluationResponse
   transactions: TransactionRecord[]
   audit: AuditRecord[]
 }
 
-export function metricsFromRecover(result: RecoverResponse): MetricsResponse | null {
-  if (result.metrics) return result.metrics
+
+export function metricsFromRecover(
+  result: RecoverResponse,
+): MetricsResponse | null {
+  if (result.metrics) {
+    return result.metrics
+  }
+
   if (
     result.revenue_recovered == null &&
     result.escalated == null &&
@@ -132,66 +188,132 @@ export function metricsFromRecover(result: RecoverResponse): MetricsResponse | n
   ) {
     return null
   }
+
   return {
     revenue_at_risk: 0,
-    revenue_recovered: result.revenue_recovered ?? 0,
+    revenue_recovered:
+      result.revenue_recovered ?? 0,
     recovery_rate: 0,
-    affected_transactions: result.processed ?? 0,
-    successful_recoveries: result.successful_recoveries ?? 0,
+    affected_transactions:
+      result.processed ?? 0,
+    successful_recoveries:
+      result.successful_recoveries ?? 0,
+    verified_recoveries:
+      result.successful_recoveries ?? 0,
     stopped: result.stopped ?? 0,
     escalated: result.escalated ?? 0,
-    actions_executed: result.actions_executed ?? 0,
+    actions_executed:
+      result.actions_executed ?? 0,
   }
 }
+
 
 export async function fetchMetrics(
   options?: RequestOptions,
 ): Promise<MetricsResponse> {
-  return requestJson<MetricsResponse>('/api/metrics', 'GET', options)
+  return requestJson<MetricsResponse>(
+    '/api/metrics',
+    'GET',
+    options,
+  )
 }
+
+
+export async function fetchEvaluation(
+  options?: RequestOptions,
+): Promise<EvaluationResponse> {
+  return requestJson<EvaluationResponse>(
+    '/api/evaluation',
+    'GET',
+    options,
+  )
+}
+
 
 export async function fetchIncident(
   options?: RequestOptions,
 ): Promise<IncidentResponse> {
-  return requestJson<IncidentResponse>('/api/incident', 'GET', options)
+  return requestJson<IncidentResponse>(
+    '/api/incident',
+    'GET',
+    options,
+  )
 }
+
 
 export async function fetchTransactions(
   options?: RequestOptions,
 ): Promise<TransactionRecord[]> {
-  const data = await requestJson<TransactionsResponse>(
-    '/api/transactions',
-    'GET',
-    options,
-  )
+  const data =
+    await requestJson<TransactionsResponse>(
+      '/api/transactions',
+      'GET',
+      options,
+    )
+
   return data.transactions
 }
+
 
 export async function fetchAudit(
   options?: RequestOptions,
 ): Promise<AuditRecord[]> {
-  const data = await requestJson<AuditResponse>('/api/audit', 'GET', options)
+  const data =
+    await requestJson<AuditResponse>(
+      '/api/audit',
+      'GET',
+      options,
+    )
+
   return data.audit
 }
+
 
 export async function fetchDashboard(
   options?: RequestOptions,
 ): Promise<DashboardPayload> {
-  const incident = await fetchIncident(options)
-  const metrics = await fetchMetrics(options)
-  const transactions = await fetchTransactions(options)
-  const audit = await fetchAudit(options)
-  return { incident, metrics, transactions, audit }
+  const incident =
+    await fetchIncident(options)
+
+  const metrics =
+    await fetchMetrics(options)
+
+  const evaluation =
+    await fetchEvaluation(options)
+
+  const transactions =
+    await fetchTransactions(options)
+
+  const audit =
+    await fetchAudit(options)
+
+  return {
+    incident,
+    metrics,
+    evaluation,
+    transactions,
+    audit,
+  }
 }
+
 
 export async function resetIncident(
   options?: RequestOptions,
 ): Promise<ResetResponse> {
-  return requestJson<ResetResponse>('/api/reset', 'POST', options)
+  return requestJson<ResetResponse>(
+    '/api/reset',
+    'POST',
+    options,
+  )
 }
+
 
 export async function runRecovery(
   options?: RequestOptions,
 ): Promise<RecoverResponse> {
-  return requestJson<RecoverResponse>('/api/recover', 'POST', options)
+  return requestJson<RecoverResponse>(
+    '/api/recover',
+    'POST',
+    options,
+  )
 }
