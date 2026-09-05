@@ -194,12 +194,16 @@ def get_category_action(
     incident=None,
 ) -> CategoryAction:
     """
-    Gemini provides contextual reasoning, while executable
-    action selection remains deterministic.
+    Deterministic category decision.
 
-    If Gemini is available and agrees with the deterministic
-    category policy, its reasoning text may be used. The action
-    and probability remain controlled by CATEGORY_POLICY.
+    The executable action and recovery probability ALWAYS come from the
+    CATEGORY_POLICY mapping. Gemini may optionally contribute a human
+    readable reason string for display/audit context, but it can NEVER
+    change the action or probability of a known failure category —
+    even if the model returns a different suggestion.
+
+    Unknown/unrecognized categories fall through to the safe ESCALATE
+    fallback; the model is never allowed to invent an action for them.
     """
 
     policy_result = deterministic_fallback(
@@ -211,14 +215,18 @@ def get_category_action(
         incident,
     )
 
+    reason = policy_result.reason
+
+    # Gemini context is used only when it agrees with the deterministic
+    # category policy. Disagreements are discarded — the policy wins.
     if gemini_result:
         if gemini_result.action == policy_result.action:
-            return CategoryAction(
-                action=policy_result.action,
-                recovery_probability=(
-                    policy_result.recovery_probability
-                ),
-                reason=gemini_result.reason,
-            )
+            reason = gemini_result.reason
 
-    return policy_result
+    return CategoryAction(
+        action=policy_result.action,
+        recovery_probability=(
+            policy_result.recovery_probability
+        ),
+        reason=reason,
+    )

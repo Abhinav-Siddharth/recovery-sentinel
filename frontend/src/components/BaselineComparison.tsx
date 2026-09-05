@@ -15,14 +15,13 @@ export function BaselineComparison({
   if (loading && !evaluation) {
     return (
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="animate-pulse rounded-lg border border-[#1d3348] bg-[#0d1a28] p-5">
-          <div className="h-3 w-32 rounded bg-[#1d3348]" />
-          <div className="mt-4 h-7 w-40 rounded bg-[#1d3348]" />
+        <div className="glass-card animate-pulse p-5">
+          <div className="h-3 w-32 rounded bg-white/[0.06]" />
+          <div className="mt-4 h-7 w-40 rounded bg-white/[0.06]" />
         </div>
-
-        <div className="animate-pulse rounded-lg border border-[#1d3348] bg-[#0d1a28] p-5">
-          <div className="h-3 w-32 rounded bg-[#1d3348]" />
-          <div className="mt-4 h-7 w-40 rounded bg-[#1d3348]" />
+        <div className="glass-card animate-pulse p-5">
+          <div className="h-3 w-32 rounded bg-white/[0.06]" />
+          <div className="mt-4 h-7 w-40 rounded bg-white/[0.06]" />
         </div>
       </div>
     )
@@ -51,12 +50,15 @@ export function BaselineComparison({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-[#24445d] bg-[#0d1a28] p-5">
-          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#7f93a8]">
-            Recovery Sentinel
+        <div className="glass-card group p-5 transition-all hover:border-[#3d9cf0]/30 hover:bg-[#3d9cf0]/[0.04]">
+          <div className="flex items-center justify-between">
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#7f93a8]">
+              Recovery Sentinel
+            </div>
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5ed0a5] shadow-[0_0_10px_rgba(93,208,165,0.5)]" />
           </div>
 
-          <div className="mt-2 text-2xl font-semibold tabular-nums text-[#d5e4f2]">
+          <div className="glow-text mt-2 text-2xl font-semibold tabular-nums text-[#d5e4f2]">
             {formatInr(
               sentinel.revenue_recovered,
             )}
@@ -64,7 +66,7 @@ export function BaselineComparison({
 
           <div className="mt-2 text-xs text-[#8fa3b8]">
             {sentinel.actions_executed} interventions
-            {' · '}
+            {' | '}
             {sentinel.recovery_rate
               .toLocaleString(
                 undefined,
@@ -79,9 +81,12 @@ export function BaselineComparison({
         </div>
 
 
-        <div className="rounded-lg border border-[#24445d] bg-[#0d1a28] p-5">
-          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#7f93a8]">
-            Blind Retry Baseline
+        <div className="glass-card group p-5 transition-all hover:border-[#e8a54b]/30 hover:bg-[#e8a54b]/[0.04]">
+          <div className="flex items-center justify-between">
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#7f93a8]">
+              Blind Retry Baseline
+            </div>
+            <span className="h-1.5 w-1.5 rounded-full bg-[#e8a54b] shadow-[0_0_10px_rgba(232,165,75,0.4)]" />
           </div>
 
           <div className="mt-2 text-2xl font-semibold tabular-nums text-[#d5e4f2]">
@@ -92,7 +97,7 @@ export function BaselineComparison({
 
           <div className="mt-2 text-xs text-[#8fa3b8]">
             {baseline.attempts} attempts
-            {' · '}
+            {' | '}
             {baseline.recovery_rate
               .toLocaleString(
                 undefined,
@@ -108,7 +113,7 @@ export function BaselineComparison({
       </div>
 
 
-      <div className="rounded-lg border border-[#23445b] bg-[#0b1723] px-5 py-4">
+      <div className="glass-card px-5 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#7f93a8]">
@@ -117,6 +122,7 @@ export function BaselineComparison({
 
             <div className="mt-1 text-sm text-[#c7d6e4]">
               Higher recovery with fewer interventions.
+
             </div>
           </div>
 

@@ -286,6 +286,42 @@ export function mapTransactions(
 }
 
 
+export function withExpectedValue(
+  rows: RecoveryRow[],
+  transactions: TransactionRecord[],
+): RecoveryRow[] {
+  const byId = new Map(
+    transactions.map((tx) => [tx.id, tx]),
+  )
+
+  return rows.map((row) => {
+    const tx = byId.get(row.id)
+
+    if (!tx) {
+      return row
+    }
+
+    const expectedValue = (
+      tx as TransactionRecord & {
+        expected_value?: number | null
+      }
+    ).expected_value
+
+    // The backend computes expected value per transaction. Use it as the
+    // source of truth; only fill the column and leave the replay row set
+    // and every other decision column untouched.
+    if (expectedValue == null) {
+      return row
+    }
+
+    return {
+      ...row,
+      expectedValue,
+    }
+  })
+}
+
+
 export function mapAudit(
   audit: AuditRecord[],
 ): AuditEvent[] {

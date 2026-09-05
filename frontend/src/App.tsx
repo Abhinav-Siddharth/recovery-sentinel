@@ -17,6 +17,7 @@ import {
   mapActivityFeed,
   mapAudit,
   mapTransactions,
+  withExpectedValue,
 } from './lib/mappers'
 
 
@@ -41,6 +42,7 @@ export default function App() {
     playing,
     replay,
     replayError,
+    liveDataReady,
   } =
     useIncidentReplay({
       reload,
@@ -49,10 +51,15 @@ export default function App() {
     })
 
 
+  // Live backend data may only be displayed when it describes the current
+  // replay. During the lead-in (HEALTHY → DETECTING → INCIDENT, and
+  // RECOVERING before this run's results exist) the dashboard state could
+  // still hold the previous run's final metrics — showing those would leak
+  // future stages into earlier ones. Those stages therefore use the phase
+  // snapshot, and the live data appears only once this run's recovery
+  // results are applied, plus for the final COMPLETE stage.
   const useLive =
-    phase === 'incident' ||
-    phase === 'recovering' ||
-    phase === 'complete'
+    phase === 'complete' || liveDataReady
 
 
   const liveIncident =
@@ -131,7 +138,12 @@ export default function App() {
           transactions,
           audit,
         )
-      : snapshot.rows
+      : phase === 'recovering'
+        ? withExpectedValue(
+            snapshot.rows,
+            transactions,
+          )
+        : snapshot.rows
 
 
   const auditEvents =
@@ -267,7 +279,7 @@ export default function App() {
         </Panel>
 
 
-        <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
+        <div className="grid gap-5 xl:grid-cols-[1.55fr_0.75fr]]">
           <Panel
             eyebrow="Recovery"
             title="Recovery activity"

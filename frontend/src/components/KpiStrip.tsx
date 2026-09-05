@@ -28,12 +28,13 @@ export function KpiStrip({
 }: KpiStripProps) {
   if (error) {
     return (
-      <section className="border border-[#1d3348] bg-[#0a1724] px-5 py-4">
+      <section className="glass px-5 py-4">
         <p className="font-mono text-[10px] tracking-[0.16em] text-[#7f93a8] uppercase">
           Live metrics
         </p>
         <p className="mt-2 text-sm text-[#f0b45d]">
           Unable to load metrics from the backend.
+
         </p>
         <p className="mt-1 text-xs text-[#6f879e]">{error}</p>
       </section>
@@ -43,42 +44,42 @@ export function KpiStrip({
   const items: Kpi[] = [
     {
       label: 'Revenue At Risk',
-      value: loading ? '…' : formatInr(revenueAtRisk),
+      value: loading ? '...' : formatInr(revenueAtRisk),
       hint: 'Affected UPI volume on ROUTE_B',
       emphasis: 'risk',
     },
     {
       label: 'Revenue Recovered',
-      value: loading ? '…' : formatInr(revenueRecovered),
+      value: loading ? '...' : formatInr(revenueRecovered),
       hint: 'Captured after bounded retry',
       emphasis: 'ok',
     },
     {
       label: 'Recovery Rate',
-      value: loading ? '…' : formatPct(recoveryRate),
+      value: loading ? '...' : formatPct(recoveryRate),
       hint: 'Recovered / at risk',
       emphasis: 'ok',
     },
     {
       label: 'Affected Transactions',
-      value: loading ? '…' : String(affectedTransactions),
+      value: loading ? '...' : String(affectedTransactions),
       hint: 'Failed on ROUTE_B / UPI',
       emphasis: 'neutral',
     },
     {
       label: 'Escalated',
-      value: loading ? '…' : String(escalated),
+      value: loading ? '...' : String(escalated),
       hint: 'High-value or non-retryable',
       emphasis: 'neutral',
     },
   ]
 
   return (
-    <section className="grid grid-cols-2 gap-px border border-[#1d3348] bg-[#1d3348] lg:grid-cols-5">
+    <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       {items.map((item, index) => (
         <article
           key={item.label}
-          className={`bg-[#0a1724] px-5 py-4 transition-opacity duration-500 ${
+          className={`glass-card hover-lift group px-5 py-4 transition-all duration-500 ${
             index === 0 ? 'col-span-2 lg:col-span-1' : ''
           } ${loading ? 'opacity-60' : ''}`}
         >
@@ -90,14 +91,14 @@ export function KpiStrip({
               item.emphasis === 'risk'
                 ? 'text-2xl text-[#f0b45d] md:text-[28px]'
                 : item.emphasis === 'ok'
-                  ? 'text-2xl text-[#5ed0a5] md:text-[28px]'
+                  ? 'glow-text text-2xl text-[#5ed0a5] md:text-[28px]'
                   : 'text-2xl text-[#e8eef5] md:text-[28px]'
             }`}
           >
             {item.value}
           </p>
-          <p className="mt-1 text-xs text-[#6f879e]">
-            {loading ? 'Loading live metrics…' : item.hint}
+          <p className="mt-1 text-xs text-[#6f879e] transition-colors group-hover:text-[#8fa3b8]">
+            {loading ? 'Loading live metrics...' : item.hint}
           </p>
         </article>
       ))}

@@ -29,6 +29,13 @@ export function useIncidentReplay({
   const [phase, setPhase] = useState<ReplayPhase>('complete')
   const [playing, setPlaying] = useState(false)
   const [replayError, setReplayError] = useState<string | null>(null)
+
+  // Whether the dashboard's live state currently describes THIS replay.
+  // It is cleared whenever a replay starts so the previous run's final
+  // metrics cannot leak into stages that have not produced them yet, and
+  // it becomes true only once the current run's recovery results have been
+  // applied.
+  const [liveDataReady, setLiveDataReady] = useState(false)
   const running = useRef(false)
 
   const snapshot: DashboardSnapshot = getSnapshot(phase)
@@ -38,6 +45,11 @@ export function useIncidentReplay({
     running.current = true
     setPlaying(true)
     setReplayError(null)
+
+    // Start from a clean slate: the live dashboard state may still hold
+    // the previous run's final recovery metrics, which must not appear in
+    // earlier stages of this replay.
+    setLiveDataReady(false)
 
     try {
       setPhase('healthy')
@@ -61,7 +73,12 @@ export function useIncidentReplay({
       setPhase('recovering')
       const recovered = await runRecovery()
       const liveMetrics = metricsFromRecover(recovered)
-      if (liveMetrics) applyMetrics(liveMetrics)
+      if (liveMetrics) {
+        applyMetrics(liveMetrics)
+        // Only now does the live dashboard state describe this replay, so
+        // it is safe to reveal the recovery results.
+        setLiveDataReady(true)
+      }
       if (recovered.incident) {
         applyIncident({
           incident: recovered.incident,
@@ -93,5 +110,5 @@ export function useIncidentReplay({
     }
   }, [applyIncident, applyMetrics, reload])
 
-  return { snapshot, phase, playing, replay, replayError }
+  return { snapshot, phase, playing, replay, replayError, liveDataReady }
 }

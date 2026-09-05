@@ -13,8 +13,8 @@ body,
 
 body {
   margin: 0;
-  color: #d5e0ee;
-  background: #061018;
+  color: #d8e6f2;
+  background: #04080f;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
@@ -23,31 +23,118 @@ body {
   min-height: 100svh;
 }
 
+/* ---------- Aurora background ---------- */
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(4%, 3%, 0) scale(1.1);
+  }
+
+  100% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+}
+
 .app-shell {
-  background:
-    radial-gradient(1200px 520px at 12% -10%, rgba(46, 140, 214, 0.16), transparent 55%),
-    radial-gradient(900px 480px at 92% 0%, rgba(232, 165, 75, 0.08), transparent 50%),
-    linear-gradient(180deg, #08131d 0%, #061018 38%, #050d14 100%);
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: #04080f;
 }
 
 .app-shell::before {
   content: '';
   pointer-events: none;
   position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 70%);
+  z-index: -2;
+  inset: -20%;
+  background:
+    radial-gradient(46% 42% at 18% 12%, rgba(59, 156, 240, 0.20), transparent 60%),
+    radial-gradient(38% 38% at 82% 10%, rgba(168, 122, 232, 0.16), transparent 60%),
+    radial-gradient(44% 44% at 75% 88%, rgba(64, 214, 162, 0.12), transparent 60%),
+    radial-gradient(40% 40% at 10% 80%, rgba(232, 165, 75, 0.10), transparent 60%);
+  filter: blur(8px);
+  animation: aurora-drift 22s ease-in-out infinite alternate;
 }
 
+.app-shell::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(rgba(120, 180, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 180, 255, 0.028) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, rgba(0, 0, 0, 0.9), transparent 75%);
+}
+
+/* ---------- Glassmorphism helpers ---------- */
+
+.glass {
+  position: relative;
+  border: 1px solid rgba(148, 185, 222, 0.10);
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(20, 34, 56, 0.55), rgba(9, 17, 29, 0.42));
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 40px rgba(0, 0, 0, 0.28);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.glass:hover {
+  border-color: rgba(148, 185, 222, 0.22);
+  background: linear-gradient(160deg, rgba(23, 39, 66, 0.62), rgba(11, 20, 34, 0.50));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 22px 48px rgba(0, 0, 0, 0.36),
+    0 0 36px rgba(59, 156, 240, 0.07);
+}
+
+.glass-card {
+  border: 1px solid rgba(148, 180, 215, 0.10);
+  border-radius: 1rem;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 0.3s ease, background 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(87, 170, 240, 0.28);
+  background: linear-gradient(160deg, rgba(59, 156, 240, 0.10), rgba(255, 255, 255, 0.02));
+  box-shadow: 0 8px 28px rgba(59, 156, 240, 0.10);
+}
+
+.hover-lift {
+  transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.glow-text {
+  text-shadow: 0 0 24px rgba(93, 208, 165, 0.35);
+}
+
+/* ---------- Animations ---------- */
+
 @keyframes pulse-dot {
+
   0%,
   100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.45;
     transform: scale(0.85);
@@ -61,8 +148,9 @@ body {
 @keyframes reveal-row {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -71,4 +159,8 @@ body {
 
 .reveal-row {
   animation: reveal-row 420ms ease both;
+}
+
+::selection {
+  background: rgba(59, 156, 240, 0.35);
 }

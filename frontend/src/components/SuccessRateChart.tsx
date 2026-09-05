@@ -38,11 +38,13 @@ export function SuccessRateChart({ data, showDegradation }: SuccessRateChartProp
           />
           <Tooltip
             contentStyle={{
-              background: '#0c1b29',
-              border: '1px solid #1d3348',
-              borderRadius: 0,
+              background: 'rgba(12, 27, 43, 0.92)',
+              border: '1px solid rgba(148, 185, 222, 0.25)',
+              borderRadius: 12,
               fontSize: 12,
               color: '#e8eef5',
+              backdropFilter: 'blur(12px)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
             }}
             formatter={(value) => [`${Number(value ?? 0).toFixed(1)}%`, 'Success']}
           />

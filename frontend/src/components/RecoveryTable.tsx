@@ -1,4 +1,4 @@
-import { formatInr } from '../lib/format'
+import { formatInr, formatInrPrecise } from '../lib/format'
 import type { RecoveryOutcome, RecoveryRow } from '../types'
 
 type RecoveryTableProps = {
@@ -13,6 +13,14 @@ const outcomeClass: Record<RecoveryOutcome, string> = {
   PENDING: 'text-[#7f93a8]',
   FAILED: 'text-[#f07167]',
   STOPPED: 'text-[#7f93a8]',
+}
+
+const outcomeChip: Record<RecoveryOutcome, string> = {
+  RECOVERED: 'border-[#5ed0a5]/30 bg-[#5ed0a5]/10',
+  ESCALATED: 'border-[#e8a54b]/30 bg-[#e8a54b]/10',
+  PENDING: 'border-[#7f93a8]/30 bg-[#7f93a8]/10',
+  FAILED: 'border-[#f07167]/30 bg-[#f07167]/10',
+  STOPPED: 'border-[#7f93a8]/30 bg-[#7f93a8]/10',
 }
 
 export function RecoveryTable({
@@ -31,7 +39,7 @@ export function RecoveryTable({
   if (loading) {
     return (
       <p className="py-8 text-center font-mono text-xs tracking-wide text-[#6f879e]">
-        Loading recovery activity…
+        Loading recovery activity...
       </p>
     )
   }
@@ -45,17 +53,17 @@ export function RecoveryTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="glass-card overflow-x-auto">
       <table className="w-full min-w-[1050px] text-left text-sm">
         <thead>
-          <tr className="font-mono text-[10px] tracking-[0.14em] text-[#7f93a8] uppercase">
-            <th className="pb-3 font-medium">Transaction</th>
-            <th className="pb-3 font-medium">Amount</th>
-            <th className="pb-3 font-medium">Failure</th>
-            <th className="pb-3 font-medium">AI Action</th>
-            <th className="pb-3 font-medium">Expected Value</th>
-            <th className="pb-3 font-medium">Policy</th>
-            <th className="pb-3 font-medium">Outcome</th>
+          <tr className="border-b border-white/[0.06] font-mono text-[10px] tracking-[0.14em] text-[#7f93a8] uppercase">
+            <th className="pb-3 pt-1 font-medium">Transaction</th>
+            <th className="pb-3 pt-1 font-medium">Amount</th>
+            <th className="pb-3 pt-1 font-medium">Failure</th>
+            <th className="pb-3 pt-1 font-medium">AI Action</th>
+            <th className="pb-3 pt-1 font-medium">Expected Value</th>
+            <th className="pb-3 pt-1 font-medium">Policy</th>
+            <th className="pb-3 pt-1 font-medium">Outcome</th>
           </tr>
         </thead>
 
@@ -63,7 +71,7 @@ export function RecoveryTable({
           {rows.map((row, index) => (
             <tr
               key={row.id}
-              className="reveal-row border-t border-[#1d3348]"
+              className="reveal-row border-t border-white/[0.05] transition-colors hover:bg-white/[0.03]"
               style={{ animationDelay: `${index * 70}ms` }}
             >
               <td className="py-2.5 font-mono text-[#d5e4f2]">
@@ -92,18 +100,20 @@ export function RecoveryTable({
 
               <td className="py-2.5 font-mono tabular-nums text-[#9eb1c4]">
                 {row.expectedValue != null
-                  ? formatInr(row.expectedValue)
-                  : '—'}
+                  ? formatInrPrecise(row.expectedValue)
+                  : '-'}
               </td>
 
               <td className="py-2.5 font-mono text-[#8fa3b8]">
                 {row.policy}
               </td>
 
-              <td
-                className={`py-2.5 font-mono ${outcomeClass[row.outcome]}`}
-              >
-                {row.outcome}
+              <td className="py-2.5">
+                <span
+                  className={`inline-block rounded-full border px-2 py-0.5 font-mono text-[11px] ${outcomeChip[row.outcome]} ${outcomeClass[row.outcome]}`}
+                >
+                  {row.outcome}
+                </span>
               </td>
             </tr>
           ))}
